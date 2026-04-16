@@ -1,5 +1,7 @@
 ---
-title: "eds213_data_cleaning_assign_jaslyn_miura"
+title: "Week 2 - Data Cleaning"
+author: "Jaslyn Miura"
+date: "04-15-2026"
 format: html
 ---
 
