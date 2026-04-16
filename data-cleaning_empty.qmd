@@ -1,8 +1,7 @@
 ---
-title: "Data Cleaning"
+title: "Homework 2: Data Cleaning"
 format: html
 ---
-
 
 ```{r}
 #| message: false  
@@ -18,13 +17,17 @@ datadir_processed <- file.path("data", "processed/")
 species_file <- "ASDN_Daily_species.csv"
 
 snowsurvey_file <- "ASDN_Snow_survey.csv"
+
+snow_cover_file <- "snow_cover.csv"
+
 ```
 
+Clean the Water_cover column to transform it into the correct data type and respect expectations for a percentage
 
-## Snow survey data
+Clean the Land_cover column to transform it into the correct data type and respect expectations for a percentage
 
-::: {.callout-note title="Our task and you have to accept it :)"}
-Our goal is to clean the `Snow_cover` column so it is ready to ingest in our database. Your mission is to find out potential problems and fix them!
+Use the relationship that the three cover columns (Snow, Water, Land) should sum up to 100% to infer missing values where possible and recompute the Total_cover column as needed
+
 :::
 
 ### Data Exploration
@@ -33,11 +36,13 @@ Import the snow survey
 
 ```{r}
 # Import the species
-snowsurvey_csv <- read_csv(file.path(datadir_raw, snowsurvey_file))
+snowcover_csv <- read_csv(file.path(datadir_processed, snow_cover_file))
 
-glimpse(snowsurvey_csv)
+glimpse(snowcover_csv)
 
 ```
+***Note***: `Water_cover` and `Land_cover` and `Total_cover` are currently character data types, we'd expect these values to be double.
+
 
 ***Is the data in long format?***: The data is in long format, since each row is representative of a column.
 

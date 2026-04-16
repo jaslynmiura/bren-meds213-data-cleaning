@@ -1,0 +1,195 @@
+---
+title: "eds213_data_cleaning_assign_jaslyn_miura"
+format: html
+---
+
+```{r}
+#| message: false  
+
+# Load necessary libraries.
+library(tidyverse)
+library(dplyr)
+
+# Create file paths name.
+datadir_raw <- file.path("data","raw")
+
+datadir_processed <- file.path("data", "processed/")
+
+species_file <- "ASDN_Daily_species.csv"
+
+snowsurvey_file <- "ASDN_Snow_survey.csv"
+
+snow_cover_file <- "snow_cover.csv"
+
+```
+
+# Snow survey data
+
+::: {.callout-note title="Our task and you have to accept it :)"}
+Clean the Water_cover column to transform it into the correct data type and respect expectations for a percentage
+
+Clean the Land_cover column to transform it into the correct data type and respect expectations for a percentage
+
+Use the relationship that the three cover columns (Snow, Water, Land) should sum up to 100% to infer missing values where possible and recompute the Total_cover column as needed
+:::
+
+## Data Exploration
+
+Import the snow survey
+
+```{r, message=FALSE}
+# Load snow survey data, where the Snow_cover column was cleaned.
+snowcover_csv <- read_csv(file.path(datadir_processed, snow_cover_file))
+```
+
+### Problems with the data set:
+
+``` {r}
+# Look at our data.
+glimpse(snowcover_csv)
+```
+
+1) `Water_cover` and `Land_cover` and `Total_cover` are currently character data types, we'd expect these values to be double.
+
+```{r}
+# Count the number of unique values in Water_cover.
+snowcover_csv %>%
+  count(Water_cover)
+```
+2) There are observations where `Water_cover` is recorded as '-', '.', 'n/a', and 'unk'. We'll want to change these observations to true NA values.
+
+```{r}
+# Count the number of unique values in Land_cover.
+snowcover_csv %>%
+  count(Land_cover)
+```
+3) There are observations where `Land_cover` is recorded as '-', '.', 'n/a', 'unk', and some negative values. We'll want to change these observations to true NA values and determine if negative values are realistic or are an input error and should be converted to positive values.
+
+```{r}
+# Count the number of unique values in Total_cover.
+snowcover_csv %>%
+  count(Total_cover)
+```
+4) There are observations where `Total_cover` is recorded as '-', '.', 'n/a', and '<row r=\\64\\ spans=\\1:11\\ x14ac:dyDescent=\\0.2\\>'. We'll want to change these observations to true NA values. We'll also want to consider dropping or changing all values that are not 100 to NA, as in the metadata all values in this row should be 100. Since this column is the sum of `Snow_cover`, `Water_cover` and `Land_cover` after completing further data cleaning, we can recalculate the `Total_cover` column then proceed with dropping or converting non 100 values.
+
+### Data cleaning
+
+1) Replacing the ".", "-", "n/a", "unk" values with NA values.
+
+```{r}
+# Replace non-numeric values with NA values.
+snowcover_fixed <- snowcover_csv %>% 
+  mutate(Land_cover = ifelse(Land_cover %in% c(".", "-", "n/a", "unk"), NA, Land_cover)) %>% 
+  mutate(Water_cover = ifelse(Water_cover %in% c(".", "-", "n/a", "unk"), NA, Water_cover)) %>% 
+  mutate(Total_cover = ifelse(Total_cover %in% c(".", "-", "n/a", "unk", "<row r=\\64\\ spans=\\1:11\\ x14ac:dyDescent=\\0.2\\>"), NA, Total_cover))
+```
+
+2) We'll now change the data types of the values within the `Land_cover`, `Water_cover`, and `Total_cover` to numeric/integer data types. This will allow us to use the `Land_cover` and `Water_cover` columns to properly calculate the `Total_cover` column.
+
+```{r}
+# Convert land, water, and total values to `dbl` or numeric data type.
+snowcover_fixed <- snowcover_fixed %>% 
+  mutate(Land_cover = as.numeric(Land_cover)) %>% 
+  mutate(Water_cover = as.numeric(Water_cover)) %>% 
+  mutate(Total_cover = as.numeric(Total_cover))
+```
+
+Now we can test if we now only have NAs as non numeric values in the column:
+
+```{r}
+# Count the number of non-numeric values.
+snowcover_fixed %>%
+  count(Land_cover) %>%
+  filter(is.na(as.numeric(Land_cover)))
+```
+
+```{r}
+# Count the number of non-numeric values.
+snowcover_fixed %>%
+  count(Water_cover) %>%
+  filter(is.na(as.numeric(Water_cover)))
+```
+
+
+```{r}
+# Count the number of non-numeric values.
+snowcover_fixed %>%
+  count(Total_cover) %>%
+  filter(is.na(as.numeric(Total_cover)))
+```
+
+Yay we have finally numeric columns for `Land_cover`, `Water_cover`, and `Total_cover` 🎉, where the only non-numeric values within these columns are NA values.
+
+3) We'll correct the `Total_cover` column, by adding up `Land_cover`, `Water_cover` and `Snow_cover` to determine the proper value within `Total_cover`. As defined by the metadata, all the values in `Total_cover` should sum to 100.
+
+```{r}
+# Recalculate the `Total_cover` column.
+snowcover_fixed <- snowcover_fixed %>%
+  mutate(Total_cover = Snow_cover + Water_cover + Land_cover)
+snowcover_fixed
+```
+
+We are dealing with percentages, so we should verify that all the values are between 0 and 100:
+
+```{r}
+# Check for values in `Total_cover` not equal to 100.
+snowcover_fixed %>% 
+  filter(Total_cover != 100) 
+```
+4) There are 4,573 rows `Total_cover do not add up to 100. We'll drop these rows, as the metadata says that the values in the column should always add up to 100. Therefore, these data inputs are incorrect.
+
+```{r}
+# Filter for rows where `Total_cover` = 100.
+snowcover_fixed <- snowcover_fixed %>% 
+  filter(Total_cover == 100)
+```
+
+```{r}
+# Find rows where `Water_cover` > 100.
+snowcover_fixed %>% 
+  filter(Water_cover > 100)
+```
+
+This tells us that there may be values within our columns that are outside our range 0-100, representing percentages. We'll fix this by filtering our data to exclude any rows where the values in the columns are outside of our range.
+
+```{r}
+# Remove any rows where values are not a realistic percentage value.
+snowcover_fixed <- snowcover_fixed %>% 
+  filter(!(Land_cover < 0 | Land_cover > 100 |
+  Water_cover < 0 | Water_cover > 100 |
+  Snow_cover < 0 | Snow_cover > 100))
+```
+
+Now we should have a data set with:
+1) Proper data types.
+
+```{r}
+# Checking the updated data types.
+glimpse(snowcover_fixed)
+```
+
+2) No non-numeric values/observations.
+
+3) Realistic observations, since cover columns represent percent coverage values/observations should fall between 0-100.
+
+```{r}
+# Checking for NA values and the range of each column.
+summary(snowcover_fixed)
+```
+
+From this summary, we see that for `Land_cover`, `Water_cover`, and `Snow_cover` the range of values are between 0 and 100, as these are the minimum and maximum values fro each column. The values form `Total_cover` are only 100 as the range is 100. We can also note that these four columns do not report any NA values.
+
+# Export a cleaned csv file.
+
+Writing the data with cleaned cover columns to a csv file:
+
+```{r}
+# check if the folder exists
+dir.create(datadir_processed, showWarnings = FALSE)
+
+# write the file
+write_csv(snowcover_fixed, file.path(datadir_processed, "all_cover_fixed_jaslyn.csv"))
+```
+
+
+
